@@ -52,15 +52,20 @@ class SimpleRouter(TransformationPass):
 
         canonical_register = dag.qregs['q']
         # trivial_layout = self.generate_random_layout(canonical_register)
-        trivial_layout = Layout.generate_trivial_layout(canonical_register)
+        # trivial_layout = Layout.generate_trivial_layout(canonical_register)
+        trivial_layout = Layout.from_intlist(np.arange(len(self.coupling_map.physical_qubits)), canonical_register)
         current_layout = trivial_layout.copy()
 
-        print(len(list(dag.serial_layers())))
+        # print(len(list(dag.serial_layers())))
         for layer in dag.serial_layers():
             subdag = layer['graph']
             next_layout = self.generate_random_layout(canonical_register)
             v2p = current_layout.get_virtual_bits().copy()
             v2p_next = next_layout.get_virtual_bits()
+            # print("current_layout = ", v2p)
+            # print("next_layout = ", v2p_next)
+            order = current_layout.reorder_bits(new_dag.qubits)
+            new_dag.compose(subdag, qubits=order)
             for vbit, _ in v2p.items():
                 pbit = current_layout.get_virtual_bits()[vbit]
                 # physical bit in the next layout
@@ -90,7 +95,5 @@ class SimpleRouter(TransformationPass):
                     # update current_layout
                     for swap in range(len(path) - 1):
                         current_layout.swap(path[swap], path[swap + 1])
-
-            order = current_layout.reorder_bits(new_dag.qubits)
-            new_dag.compose(subdag, qubits=order)
+            # print("updated current_layout = ", current_layout.get_virtual_bits())
         return new_dag
