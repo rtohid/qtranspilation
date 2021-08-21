@@ -28,7 +28,7 @@ def line_routing(src, dst):
 				tmp = current[i]
 				current[i] = current[i+1]
 				current[i+1] = tmp
-				swap_edge.append([current[i], current[i+1]])
+				swap_edge.append([i, i+1])
 		swap_edges.append(swap_edge)
 		# print("swap_edges in iteration {}: {}".format(iteration, swap_edge))
 		# print("current position = {}".format(current))
