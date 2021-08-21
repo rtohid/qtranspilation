@@ -44,13 +44,17 @@ def line_routing(src, dst):
 # return swap gates on physical qubit in order 
 def parallelize_swap_gates(swap_edges, m, n, col=True):
 	swap_edges_in_parallel = []
-	size = np.zeros([n], dtype=np.int32)
-	index = np.zeros([n], dtype=np.int32)
-	for i in range(n):
+	if col:
+		num = n
+	else:
+		num = m
+	size = np.zeros([num], dtype=np.int32)
+	index = np.zeros([num], dtype=np.int32)
+	for i in range(num):
 		size[i] = len(swap_edges[i])
 	while np.max(size - index) != 0:
 		swap_edges_iter = []
-		for i in range(n):
+		for i in range(num):
 			if index[i] < size[i]:
 				for edge in swap_edges[i][index[i]]:
 					new_edge = edge.copy()
@@ -80,22 +84,22 @@ def round_1_column_routing(dst_column):
 	for i in range(m):
 		# build flow network
 		# source 0
-		# s: 1 ~ m
-		# t: m+1 ~ 2m
-		# sink: 2m+1
+		# s: 1 ~ n
+		# t: n+1 ~ 2n
+		# sink: 2n+1
 		G = nx.DiGraph()
 		# add source and sink edges
-		for j in range(m):
+		for j in range(n):
 			G.add_edge(0, j+1, capacity=1, weight=1)
-			G.add_edge(m+1+j, 2*m+1, capacity=1, weight=1)
+			G.add_edge(n+1+j, 2*n+1, capacity=1, weight=1)
 		# add bipartitie connection
 		for j in range(m):
 			for k in range(n):
 				if available_dst[k, dst_column[j, k]] > 0:
-					G.add_edge(1+k, m+1+dst_column[j, k], capacity=1, weight=1)
+					G.add_edge(1+k, n+1+dst_column[j, k], capacity=1, weight=1)
 		# nx.draw(G)
 		# plt.show()
-		mincostFlow = nx.max_flow_min_cost(G, 0, 2*m+1)
+		mincostFlow = nx.max_flow_min_cost(G, 0, 2*n+1)
 		print("~~~~~~~~~~~~~~~~~~~~~~~")
 		print(mincostFlow)
 		# find i-th matching: map the selected elements from current row to the i-th row
@@ -104,13 +108,13 @@ def round_1_column_routing(dst_column):
 				continue
 			vertices = mincostFlow[u]
 			for v in vertices:
-				if v == 2*m+1 or vertices[v] == 0:
+				if v == 2*n+1 or vertices[v] == 0:
 					continue
 				# edge (u, v) is in the matching, i.e., qbit will move from column u to v
 				# find required source column
 				required_src = u - 1 
 				# find required destination column
-				required_dst = v - (m + 1)
+				required_dst = v - (n + 1)
 				# find row index in the required source column
 				required_row_ind = np.where(dst_column[:, required_src] == required_dst)[0][0]
 				# print("required_src = {}, required_dst = {}, required_row_ind = {}".format(required_src, required_dst, required_row_ind))
@@ -152,13 +156,12 @@ def round_3_column_routing(dst_row):
 	swap_edges = []
 	for i in range(n):
 		swap_edges.append(line_routing(dst_row[:, i], np.arange(m)))
-		intermediate_mapping[dst_row[:, i], i] = np.arange(n)
+		intermediate_mapping[dst_row[:, i], i] = np.arange(m)
 	print("swap_edges = ")
 	print(swap_edges)
 	print("parallelized swap_edges = ")
 	print(parallelize_swap_gates(swap_edges, m, n))
 	return intermediate_mapping
-
 
 def grid_route(src, dst):
 	assert(len(src.shape) == 2)
@@ -167,7 +170,9 @@ def grid_route(src, dst):
 	m, n = np.shape(src)
 	mapping = np.argsort(dst.reshape([-1]))
 	mapping_column = mapping % n
-	mapping_row = mapping // m
+	mapping_row = mapping // n
+	print(mapping_column)
+	print(mapping_row)
 	dst_column = mapping_column[src]
 	dst_row = mapping_row[src]
 	# print(dst_column)
@@ -204,8 +209,10 @@ def grid_route(src, dst):
 	print(dst_row)
 
 # test routing
-a = np.arange(16).reshape([4, 4])
+# a = np.arange(16).reshape([4, 4])
+a = np.arange(12).reshape([3, 4])
 print(a)
-b = 15 - a 
+# b = 15 - a 
+b = 11 - a 
 print(b)
 grid_route(a, b)
