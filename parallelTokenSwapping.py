@@ -71,6 +71,7 @@ def parallelize_swap_gates(swap_edges, m, n, col=True):
 
 def round_1_column_routing(dst_column):
 	# determine the intermediate_mapping: routing desitation in the first round
+	print("Round 1: column routing")
 	m, n = np.shape(dst_column)
 	intermediate_mapping = np.zeros([m, n], dtype=np.int32) - 1
 	# initiatilize how many destinations are available
@@ -123,7 +124,7 @@ def round_1_column_routing(dst_column):
 				# mark the corresponding data as mapped
 				dst_column[required_row_ind, required_src] = -1
 				# record the mapping
-				intermediate_mapping[required_row_ind, required_src] = i
+				intermediate_mapping[i, required_src] = required_row_ind
 	# perform column routing
 	swap_edges = []
 	for i in range(n):
@@ -137,6 +138,7 @@ def round_1_column_routing(dst_column):
 
 # route dst_column to the correct place
 def round_2_row_routing(dst_column):
+	print("Round 2: row routing")
 	m, n = np.shape(dst_column)
 	intermediate_mapping = np.zeros([m, n], dtype=np.int32)
 	swap_edges = []
@@ -151,6 +153,7 @@ def round_2_row_routing(dst_column):
 
 # rout dst_row to the correct place
 def round_3_column_routing(dst_row):
+	print("Round 3: column routing")
 	m, n = np.shape(dst_row)
 	intermediate_mapping = np.zeros([m, n], dtype=np.int32)
 	swap_edges = []
@@ -168,13 +171,16 @@ def grid_route(src, dst):
 	assert(len(src) == len(dst))
 	# create mapping
 	m, n = np.shape(src)
-	mapping = np.argsort(dst.reshape([-1]))
-	mapping_column = mapping % n
-	mapping_row = mapping // n
-	print(mapping_column)
-	print(mapping_row)
-	dst_column = mapping_column[src]
-	dst_row = mapping_row[src]
+	arg_src = np.argsort(src.reshape([-1]))
+	arg_dst = np.argsort(dst.reshape([-1]))
+	print(arg_src)
+	print(arg_dst)
+	mapping = np.zeros([m * n], dtype=np.int32)
+	mapping[arg_src] = arg_dst
+	dst_column = mapping.reshape([m, n]) % n
+	dst_row = mapping.reshape([m, n]) // n
+	print(dst_column)
+	print(dst_row)
 	# print(dst_column)
 	# print(dst_row)
 	intermediate_mapping = round_1_column_routing(dst_column.copy())
@@ -209,10 +215,8 @@ def grid_route(src, dst):
 	print(dst_row)
 
 # test routing
-# a = np.arange(16).reshape([4, 4])
-a = np.arange(12).reshape([3, 4])
+a = np.random.permutation(12).reshape([3, 4])
 print(a)
-# b = 15 - a 
-b = 11 - a 
+b = np.random.permutation(12).reshape([3, 4])
 print(b)
 grid_route(a, b)
