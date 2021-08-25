@@ -245,13 +245,13 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 		# add bipartitie connection
 		for j in range(m):
 			for k in range(m):
-				if distance[j, k] > delta:
+				if distance[j, k] < delta:
 					H.add_edge(1+j, m+1+k, capacity=1, weight=distance[j, k])
 		# find matching
 		flowValue, maxFlow = nx.algorithms.flow.maximum_flow(H, 0, 2*m+1)
 		if flowValue < m:
 			# no perfect matching
-			sorted_distance = sorted_distance[:mid]
+			sorted_distance = sorted_distance[mid + 1:]
 		else:
 			# perfect matching found
 			# record matching
@@ -268,14 +268,8 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 					# find index of row
 					row_ind = v - (m + 1)
 					bottleneck_matching.append([matching_ind, row_ind])
-			sorted_distance = sorted_distance[mid + 1:]
+			sorted_distance = sorted_distance[:mid]
 	# test correct result
-	bottleneck_matching.clear()
-	bottleneck_matching.append([0, 4])
-	bottleneck_matching.append([1, 0])
-	bottleneck_matching.append([2, 1])
-	bottleneck_matching.append([3, 2])
-	bottleneck_matching.append([4, 3])
 	print(bottleneck_matching)
 	# assign mapping
 	# intermediate_mapping[i, required_src] = required_row_ind
