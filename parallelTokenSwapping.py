@@ -133,7 +133,9 @@ def round_1_column_routing(dst_column):
 	print(swap_edges)
 	# adjust order
 	print("parallelized swap_edges = ")
-	print(parallelize_swap_gates(swap_edges, m, n))
+	p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
+	print(p_swap_edges)
+	print("depth = {}".format(len(p_swap_edges)))
 	return intermediate_mapping
 
 def find_perfect_matching(dst_row, dst_column, current_row, matchings):
@@ -215,9 +217,9 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 	# bottleneck bipartite perfect matching
 	distance = np.zeros([m, m])
 	for j in range(m):
+		matching = matchings[j]
 		for k in range(m):
 			# compute weight for j-th matching to k-th row
-			matching = matchings[j]
 			dist = 0
 			for i in range(n):
 				dist += np.abs(matching[i][2] - k) + np.abs(matching[i][3] - k)
@@ -225,10 +227,10 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 	# binary search based BBPM
 	print(distance)
 	bottleneck_matching = []
-	start = 0
-	end = np.max(distance.reshape([-1]))
-	while start != end:
-		mid = (start + end) // 2
+	sorted_distance = np.sort(distance).reshape([-1])
+	while sorted_distance.size != 0:
+		mid = sorted_distance.size // 2
+		delta = sorted_distance[mid]
 		# create complete bipartite graph H
 		H = nx.DiGraph()
 		# build flow network
@@ -243,13 +245,13 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 		# add bipartitie connection
 		for j in range(m):
 			for k in range(m):
-				if distance[j, k] > mid:
+				if distance[j, k] > delta:
 					H.add_edge(1+j, m+1+k, capacity=1, weight=distance[j, k])
 		# find matching
 		flowValue, maxFlow = nx.algorithms.flow.maximum_flow(H, 0, 2*m+1)
 		if flowValue < m:
 			# no perfect matching
-			end = mid - 1
+			sorted_distance = sorted_distance[:mid]
 		else:
 			# perfect matching found
 			# record matching
@@ -266,7 +268,14 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 					# find index of row
 					row_ind = v - (m + 1)
 					bottleneck_matching.append([matching_ind, row_ind])
-			start = mid + 1
+			sorted_distance = sorted_distance[mid + 1:]
+	# test correct result
+	# bottleneck_matching.clear()
+	# bottleneck_matching.append([0, 4])
+	# bottleneck_matching.append([1, 0])
+	# bottleneck_matching.append([2, 1])
+	# bottleneck_matching.append([3, 2])
+	# bottleneck_matching.append([4, 3])
 	print(bottleneck_matching)
 	# assign mapping
 	# intermediate_mapping[i, required_src] = required_row_ind
@@ -284,9 +293,10 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 	print(swap_edges)
 	# adjust order
 	print("parallelized swap_edges = ")
-	print(parallelize_swap_gates(swap_edges, m, n))
+	p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
+	print(p_swap_edges)
+	print("depth = {}".format(len(p_swap_edges)))
 	return intermediate_mapping
-
 
 # route dst_column to the correct place
 def round_2_row_routing(dst_column):
@@ -299,8 +309,10 @@ def round_2_row_routing(dst_column):
 		intermediate_mapping[i, dst_column[i, :]] = np.arange(n)
 	print("swap_edges = ")
 	print(swap_edges)
+	p_swap_edges = parallelize_swap_gates(swap_edges, m, n, False)
 	print("parallelized swap_edges = ")
-	print(parallelize_swap_gates(swap_edges, m, n, False))
+	print(p_swap_edges)
+	print("depth = {}".format(len(p_swap_edges)))
 	return intermediate_mapping
 
 # rout dst_row to the correct place
@@ -314,11 +326,13 @@ def round_3_column_routing(dst_row):
 		intermediate_mapping[dst_row[:, i], i] = np.arange(m)
 	print("swap_edges = ")
 	print(swap_edges)
+	p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
 	print("parallelized swap_edges = ")
-	print(parallelize_swap_gates(swap_edges, m, n))
+	print(p_swap_edges)
+	print("depth = {}".format(len(p_swap_edges)))
 	return intermediate_mapping
 
-def grid_route(src, dst):
+def grid_route(src, dst, local=False):
 	assert(len(src.shape) == 2)
 	assert(len(src) == len(dst))
 	# create mapping
@@ -335,8 +349,10 @@ def grid_route(src, dst):
 	print(dst_row)
 	# print(dst_column)
 	# print(dst_row)
-	# intermediate_mapping = round_1_column_routing(dst_column.copy())
-	intermediate_mapping = round_1_column_routing_with_localism(dst_row.copy(), dst_column.copy())
+	if local:
+		intermediate_mapping = round_1_column_routing_with_localism(dst_row.copy(), dst_column.copy())
+	else:
+		intermediate_mapping = round_1_column_routing(dst_column.copy())
 	print(intermediate_mapping)
 	# swap dst_column and dst_row based on the intermediate_mapping
 	for i in range(n):
@@ -375,4 +391,8 @@ a = np.arange(15).reshape([5, 3])
 b = np.array([1, 5, 4, 0, 2, 3, 6, 10, 12, 13, 9, 7, 11, 14, 8]).reshape([5, 3])
 print(a)
 print(b)
-grid_route(a, b)
+import sys
+local = 0
+if len(sys.argv) > 1:
+	local = int(sys.argv[1])
+grid_route(a, b, local)
