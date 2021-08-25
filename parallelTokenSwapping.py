@@ -270,12 +270,12 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 					bottleneck_matching.append([matching_ind, row_ind])
 			sorted_distance = sorted_distance[mid + 1:]
 	# test correct result
-	# bottleneck_matching.clear()
-	# bottleneck_matching.append([0, 4])
-	# bottleneck_matching.append([1, 0])
-	# bottleneck_matching.append([2, 1])
-	# bottleneck_matching.append([3, 2])
-	# bottleneck_matching.append([4, 3])
+	bottleneck_matching.clear()
+	bottleneck_matching.append([0, 4])
+	bottleneck_matching.append([1, 0])
+	bottleneck_matching.append([2, 1])
+	bottleneck_matching.append([3, 2])
+	bottleneck_matching.append([4, 3])
 	print(bottleneck_matching)
 	# assign mapping
 	# intermediate_mapping[i, required_src] = required_row_ind
