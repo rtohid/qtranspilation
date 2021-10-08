@@ -161,7 +161,7 @@ def find_perfect_matching(dst_row, dst_column, current_row, matchings):
 		# add bipartitie connection
 		for j in range(m):
 			for k in range(n):
-				if available_dst[k, dst_column[j, k]] > 0:
+				if dst_column[j, k] != -1 and available_dst[k, dst_column[j, k]] > 0:
 					G.add_edge(1+k, n+1+dst_column[j, k], capacity=1, weight=1)
 		# nx.draw(G, with_labels = True)
 		# plt.show()
@@ -191,9 +191,8 @@ def find_perfect_matching(dst_row, dst_column, current_row, matchings):
 				# mark the corresponding data as mapped
 				dst_column[required_row_ind, required_src] = -1
 				# record matching [j, j', i, i']
-				matching.append([required_src, required_dst, current_row + required_row_ind, dst_row[required_row_ind, required_src]])
+				matching.append([required_src, required_dst, current_row + required_row_ind, current_row + dst_row[required_row_ind, required_src]])
 		matchings.append(matching)
-
 
 def round_1_column_routing_with_localism(dst_row, dst_column):
 	# determine the intermediate_mapping: routing desitation in the first round
@@ -203,7 +202,7 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 	matchings = []
 	window_size = 1
 	while len(matchings) < m and window_size <= m*2:
-		# iterate over  each slice
+		# iterate over each slice
 		start = 0
 		for i in range(m // window_size + 1):
 			end = np.min([start + window_size, m])
@@ -378,11 +377,13 @@ def grid_route(src, dst, local=False):
 	print(dst_row)
 
 # test routing
-# a = np.random.permutation(12).reshape([3, 4])
-# b = np.random.permutation(12).reshape([3, 4])
+n1 = 6
+n2 = 6
+a = np.random.permutation(n1*n2).reshape([n1, n2])
+b = np.random.permutation(n1*n2).reshape([n1, n2])
 # using Avah's example
-a = np.arange(15).reshape([5, 3])
-b = np.array([1, 5, 4, 0, 2, 3, 6, 10, 12, 13, 9, 7, 11, 14, 8]).reshape([5, 3])
+# a = np.arange(15).reshape([5, 3])
+# b = np.array([1, 5, 4, 0, 2, 3, 6, 10, 12, 13, 9, 7, 11, 14, 8]).reshape([5, 3])
 print(a)
 print(b)
 import sys
