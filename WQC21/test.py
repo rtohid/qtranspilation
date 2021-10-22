@@ -11,10 +11,10 @@ from typing import Dict, List, Tuple
 
 from arct.permutation.general import ApproximateTokenSwapper
 
-grid_dimensions = [(2, 2), (3, 2)]
-# grid_dimensions = [(2, 2), (3, 2), (3, 3), (4, 4), (8, 2), (8, 4), (16, 2),
-#                    (8, 8), (16, 4), (32, 2), (8, 16), (32, 4), (64, 2),
-#                    (16, 16), (32, 8), (64, 4), (128, 2)]
+# grid_dimensions = [(2, 2), (3, 2)]
+grid_dimensions = [(2, 2), (3, 2), (3, 3), (4, 4), (8, 2), (8, 4), (16, 2),
+                   (8, 8), (16, 4), (32, 2), (8, 16), (32, 4), (64, 2),
+                   (16, 16), (32, 8), (64, 4), (128, 2)]
 
 Swap = Tuple[int, int]
 
@@ -302,7 +302,7 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
             line_routing(np.arange(m), intermediate_mapping[:, i]))
     # adjust order
     p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
-    return intermediate_mapping
+    return p_swap_edges, intermediate_mapping
 
 
 # route dst_column to the correct place
@@ -314,7 +314,7 @@ def round_2_row_routing(dst_column):
         swap_edges.append(line_routing(dst_column[i, :], np.arange(n)))
         intermediate_mapping[i, dst_column[i, :]] = np.arange(n)
     p_swap_edges = parallelize_swap_gates(swap_edges, m, n, False)
-    return intermediate_mapping
+    return p_swap_edges, intermediate_mapping
 
 
 # rout dst_row to the correct place
@@ -333,6 +333,7 @@ def grid_route(src, dst, local=False):
     assert (len(src.shape) == 2)
     assert (len(src) == len(dst))
     # create mapping
+    swap_gates = list()
     m, n = np.shape(src)
     arg_src = np.argsort(src.reshape([-1]))
     arg_dst = np.argsort(dst.reshape([-1]))
@@ -341,24 +342,30 @@ def grid_route(src, dst, local=False):
     dst_column = mapping.reshape([m, n]) % n
     dst_row = mapping.reshape([m, n]) // n
     if local:
-        intermediate_mapping = round_1_column_routing_with_localism(
+        swaps, intermediate_mapping = round_1_column_routing_with_localism(
             dst_row.copy(), dst_column.copy())
     else:
-        intermediate_mapping = round_1_column_routing(dst_column.copy())
+        swaps, intermediate_mapping = round_1_column_routing(dst_column.copy())
+    if swaps:
+        swap_gates += swaps
     # swap dst_column and dst_row based on the intermediate_mapping
     for i in range(n):
         tmp = dst_column[:, i]
         dst_column[:, i] = tmp[intermediate_mapping[:, i]]
         tmp = dst_row[:, i]
         dst_row[:, i] = tmp[intermediate_mapping[:, i]]
-    intermediate_mapping = round_2_row_routing(dst_column.copy())
+    swaps, intermediate_mapping = round_2_row_routing(dst_column.copy())
+    if swaps:
+        swap_gates += swaps
     # swap dst_column and dst_row
     for i in range(m):
         tmp = dst_column[i, :]
         dst_column[i, :] = tmp[intermediate_mapping[i, :]]
         tmp = dst_row[i, :]
         dst_row[i, :] = tmp[intermediate_mapping[i, :]]
-    swap_gates, intermediate_mapping = round_3_column_routing(dst_row.copy())
+    swaps, intermediate_mapping = round_3_column_routing(dst_row.copy())
+    if swaps:
+        swap_gates += swaps
     # swap dst_column and dst_row based on the intermediate_mapping
     for i in range(n):
         tmp = dst_column[:, i]
@@ -478,7 +485,8 @@ for idx, maps in enumerate(grids):
     speed_ups.append(speed_up)
     stepping_comparison.append(stepping_ratio)
 
-print(f"speed_ups: {speed_ups}, stepping ratios: {stepping_comparison}")
+print(f"speed_ups: {speed_ups}")
+print(f"stepping ratios: {stepping_comparison}")
 print()
 
 # np.save('grids.npy', grids)
