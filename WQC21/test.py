@@ -1,4 +1,6 @@
 import networkx as nx
+from networkx.algorithms import swap
+from networkx.algorithms.cycles import simple_cycles
 import numpy as np
 import time
 
@@ -9,9 +11,10 @@ from typing import Dict, List, Tuple
 
 from arct.permutation.general import ApproximateTokenSwapper
 
-grid_dimensions = [(2, 2), (3, 2), (3, 3), (4, 4), (8, 2), (8, 4), (16, 2),
-                   (8, 8), (16, 4), (32, 2), (8, 16), (32, 4), (64, 2),
-                   (16, 16), (32, 8), (64, 4), (128, 2)]
+grid_dimensions = [(2, 2), (3, 2)]
+# grid_dimensions = [(2, 2), (3, 2), (3, 3), (4, 4), (8, 2), (8, 4), (16, 2),
+#                    (8, 8), (16, 4), (32, 2), (8, 16), (32, 4), (64, 2),
+#                    (16, 16), (32, 8), (64, 4), (128, 2)]
 
 Swap = Tuple[int, int]
 
@@ -323,7 +326,7 @@ def round_3_column_routing(dst_row):
         swap_edges.append(line_routing(dst_row[:, i], np.arange(m)))
         intermediate_mapping[dst_row[:, i], i] = np.arange(m)
     p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
-    return intermediate_mapping
+    return p_swap_edges, intermediate_mapping
 
 
 def grid_route(src, dst, local=False):
@@ -355,13 +358,15 @@ def grid_route(src, dst, local=False):
         dst_column[i, :] = tmp[intermediate_mapping[i, :]]
         tmp = dst_row[i, :]
         dst_row[i, :] = tmp[intermediate_mapping[i, :]]
-    intermediate_mapping = round_3_column_routing(dst_row.copy())
+    swap_gates, intermediate_mapping = round_3_column_routing(dst_row.copy())
     # swap dst_column and dst_row based on the intermediate_mapping
     for i in range(n):
         tmp = dst_column[:, i]
         dst_column[:, i] = tmp[intermediate_mapping[:, i]]
         tmp = dst_row[:, i]
         dst_row[:, i] = tmp[intermediate_mapping[:, i]]
+
+    return swap_gates
 
 
 def random_map(shape: Tuple) -> np.ndarray:
@@ -432,28 +437,48 @@ def approx_token_swapping(in_circuit: nx.Graph,
 
 
 speed_ups = list()
+stepping_comparison = list()
 # grids = np.load('grids.npy', allow_pickle='TRUE')
 for idx, maps in enumerate(grids):
     source = maps[0]
     target = maps[1]
+    # print(source)
+    # print(target)
     demo_circuit = nx.convert_node_labels_to_integers(
         nx.grid_2d_graph(*grid_dimensions[idx]))
 
     print(grid_dimensions[idx])
+    print('-' * len(str(grid_dimensions[idx])))
 
     start = time.process_time()
-    grid_route(source, target, True)
+    swaps = grid_route(source, target, True)
+    # print(swaps)
     time_local = time.process_time() - start
-    print(f"local: {time_local}")
+    num_steps_grid = len(swaps)
+    print(f"grid_algo\ntime: {time_local}, #steps: {num_steps_grid}")
+    print()
 
     start = time.process_time()
     demo_circuit_permutations = approx_token_swapping(
         demo_circuit, list((zip(source.flatten(), target.flatten()))))
     time_token_swap = time.process_time() - start
-    print(f"token swap: {time_token_swap}")
-    #
-    print(f"speedup: {time_token_swap/time_local}")
-    speed_ups.append(time_token_swap / time_local)
-print(speed_ups)
+    num_steps_token_swapping = len(demo_circuit_permutations)
+    print(
+        f"token swap\ntime: {time_token_swap}, #steps: {num_steps_token_swapping}"
+    )
+    print()
+
+    speed_up = time_token_swap / time_local
+    stepping_ratio =  num_steps_token_swapping / num_steps_grid
+    print(f"speedup (t_token / t_grid): {speed_up}")
+    print(f"stepping ratio (s_token / s_grid): {stepping_ratio}")
+    print()
+    print()
+
+    speed_ups.append(speed_up)
+    stepping_comparison.append(stepping_ratio)
+
+print(f"speed_ups: {speed_ups}, stepping ratios: {stepping_comparison}")
+print()
 
 # np.save('grids.npy', grids)
