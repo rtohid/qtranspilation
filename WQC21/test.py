@@ -1,17 +1,20 @@
 import networkx as nx
+from networkx.algorithms import swap
+from networkx.algorithms.cycles import simple_cycles
 import numpy as np
 import time
 
 from collections import defaultdict
 from copy import deepcopy
+from matplotlib import pyplot as plt
 from typing import Dict, List, Tuple
 
 from arct.permutation.general import ApproximateTokenSwapper
 
-grid_dimensions = [(2, 2), (3, 2), (3, 3), (4, 4), (8, 8)]
-# grid_dimensions = [(2, 2), (3, 2), (3, 3), (4, 4), (8, 2), (8, 4), (16, 2),
-#                    (8, 8), (16, 4), (32, 2), (8, 16), (32, 4), (64, 2),
-#                    (16, 16), (32, 8), (64, 4), (128, 2)]
+# grid_dimensions = [(2, 2), (3, 2)]
+grid_dimensions = [(2, 2), (3, 2), (3, 3), (4, 4), (8, 2), (8, 4), (16, 2),
+                   (8, 8), (16, 4), (32, 2), (8, 16), (32, 4), (64, 2),
+                   (16, 16), (32, 8), (64, 4), (128, 2)]
 
 Swap = Tuple[int, int]
 
@@ -28,7 +31,6 @@ def line_routing(src, dst):
     assert (len(src) == len(dst))
     n = len(src)
     mapping = np.argsort(dst)
-
     start = 0
     current = src.copy()
     iteration = 0
@@ -44,7 +46,6 @@ def line_routing(src, dst):
                 current[i + 1] = tmp
                 swap_edge.append([i, i + 1])
         swap_edges.append(swap_edge)
-
         iteration += 1
         start = 1 - start
     return swap_edges
@@ -84,16 +85,15 @@ def parallelize_swap_gates(swap_edges, m, n, col=True):
 
 
 def round_1_column_routing(dst_column):
-    # determine the intermediate_mapping: routing destination in the first round
+    # determine the intermediate_mapping: routing desitation in the first round
     m, n = np.shape(dst_column)
     intermediate_mapping = np.zeros([m, n], dtype=np.int32) - 1
-    # initialize how many destinations are available
+    # initiatilize how many destinations are available
     # available_dst[i, j]: available dst in column i for dst j
     available_dst = np.zeros([n, n], dtype=np.int32)
     for i in range(m):
         for j in range(n):
             available_dst[j, dst_column[i, j]] += 1
-
     for i in range(m):
         # build flow network
         # source 0
@@ -105,7 +105,7 @@ def round_1_column_routing(dst_column):
         for j in range(n):
             G.add_edge(0, j + 1, capacity=1, weight=1)
             G.add_edge(n + 1 + j, 2 * n + 1, capacity=1, weight=1)
-        # add bipartite connection
+        # add bipartitie connection
         for j in range(m):
             for k in range(n):
                 if available_dst[k, dst_column[j, k]] > 0:
@@ -113,9 +113,9 @@ def round_1_column_routing(dst_column):
                                n + 1 + dst_column[j, k],
                                capacity=1,
                                weight=1)
-
+        # nx.draw(G, with_labels = True)
+        # plt.show()
         mincostFlow = nx.max_flow_min_cost(G, 0, 2 * n + 1)
-
         # find i-th matching: map the selected elements from current row to the i-th row
         for u in mincostFlow:
             if u == 0:
@@ -145,7 +145,7 @@ def round_1_column_routing(dst_column):
             line_routing(np.arange(m), intermediate_mapping[:, i]))
     # adjust order
     p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
-    return (intermediate_mapping, p_swap_edges)
+    return intermediate_mapping
 
 
 def find_perfect_matching(dst_row, dst_column, current_row, matchings):
@@ -170,11 +170,15 @@ def find_perfect_matching(dst_row, dst_column, current_row, matchings):
         # add bipartitie connection
         for j in range(m):
             for k in range(n):
-                if available_dst[k, dst_column[j, k]] > 0:
+                if dst_column[j, k] != -1 and available_dst[k,
+                                                            dst_column[j,
+                                                                       k]] > 0:
                     G.add_edge(1 + k,
                                n + 1 + dst_column[j, k],
                                capacity=1,
                                weight=1)
+        # nx.draw(G, with_labels = True)
+        # plt.show()
         flowValue, maxFlow = nx.algorithms.flow.maximum_flow(G, 0, 2 * n + 1)
         if flowValue < n:
             # no perfect matching
@@ -203,7 +207,7 @@ def find_perfect_matching(dst_row, dst_column, current_row, matchings):
                 # record matching [j, j', i, i']
                 matching.append([
                     required_src, required_dst, current_row + required_row_ind,
-                    dst_row[required_row_ind, required_src]
+                    current_row + dst_row[required_row_ind, required_src]
                 ])
         matchings.append(matching)
 
@@ -215,7 +219,7 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
     matchings = []
     window_size = 1
     while len(matchings) < m and window_size <= m * 2:
-        # iterate over  each slice
+        # iterate over each slice
         start = 0
         for i in range(m // window_size + 1):
             end = np.min([start + window_size, m])
@@ -282,7 +286,9 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
                     row_ind = v - (m + 1)
                     bottleneck_matching.append([matching_ind, row_ind])
             sorted_distance = sorted_distance[:mid]
-
+    # test correct result
+    # assign mapping
+    # intermediate_mapping[i, required_src] = required_row_ind
     for i in range(len(bottleneck_matching)):
         matching = matchings[bottleneck_matching[i][0]]
         row = bottleneck_matching[i][1]
@@ -294,10 +300,9 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
     for i in range(n):
         swap_edges.append(
             line_routing(np.arange(m), intermediate_mapping[:, i]))
-
+    # adjust order
     p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
-
-    return (intermediate_mapping, p_swap_edges)
+    return p_swap_edges, intermediate_mapping
 
 
 # route dst_column to the correct place
@@ -308,10 +313,8 @@ def round_2_row_routing(dst_column):
     for i in range(m):
         swap_edges.append(line_routing(dst_column[i, :], np.arange(n)))
         intermediate_mapping[i, dst_column[i, :]] = np.arange(n)
-
     p_swap_edges = parallelize_swap_gates(swap_edges, m, n, False)
-
-    return (intermediate_mapping, p_swap_edges)
+    return p_swap_edges, intermediate_mapping
 
 
 # rout dst_row to the correct place
@@ -322,16 +325,15 @@ def round_3_column_routing(dst_row):
     for i in range(n):
         swap_edges.append(line_routing(dst_row[:, i], np.arange(m)))
         intermediate_mapping[dst_row[:, i], i] = np.arange(m)
-
     p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
-
-    return (intermediate_mapping, p_swap_edges)
+    return p_swap_edges, intermediate_mapping
 
 
 def grid_route(src, dst, local=False):
     assert (len(src.shape) == 2)
     assert (len(src) == len(dst))
     # create mapping
+    swap_gates = list()
     m, n = np.shape(src)
     arg_src = np.argsort(src.reshape([-1]))
     arg_dst = np.argsort(dst.reshape([-1]))
@@ -339,38 +341,39 @@ def grid_route(src, dst, local=False):
     mapping[arg_src] = arg_dst
     dst_column = mapping.reshape([m, n]) % n
     dst_row = mapping.reshape([m, n]) // n
-
     if local:
-        intermediate_mapping, p_swap_edges = round_1_column_routing_with_localism(
+        swaps, intermediate_mapping = round_1_column_routing_with_localism(
             dst_row.copy(), dst_column.copy())
     else:
-        intermediate_mapping, p_swap_edges = round_1_column_routing(
-            dst_column.copy())
-
+        swaps, intermediate_mapping = round_1_column_routing(dst_column.copy())
+    if swaps:
+        swap_gates += swaps
     # swap dst_column and dst_row based on the intermediate_mapping
     for i in range(n):
         tmp = dst_column[:, i]
         dst_column[:, i] = tmp[intermediate_mapping[:, i]]
         tmp = dst_row[:, i]
         dst_row[:, i] = tmp[intermediate_mapping[:, i]]
-
-    intermediate_mapping, p_swap_edges = round_2_row_routing(dst_column.copy())
-
+    swaps, intermediate_mapping = round_2_row_routing(dst_column.copy())
+    if swaps:
+        swap_gates += swaps
     # swap dst_column and dst_row
     for i in range(m):
         tmp = dst_column[i, :]
         dst_column[i, :] = tmp[intermediate_mapping[i, :]]
         tmp = dst_row[i, :]
         dst_row[i, :] = tmp[intermediate_mapping[i, :]]
-
-    intermediate_mapping, p_swap_edges = round_3_column_routing(dst_row.copy())
-
+    swaps, intermediate_mapping = round_3_column_routing(dst_row.copy())
+    if swaps:
+        swap_gates += swaps
     # swap dst_column and dst_row based on the intermediate_mapping
     for i in range(n):
         tmp = dst_column[:, i]
         dst_column[:, i] = tmp[intermediate_mapping[:, i]]
         tmp = dst_row[:, i]
         dst_row[:, i] = tmp[intermediate_mapping[:, i]]
+
+    return swap_gates
 
 
 def random_map(shape: Tuple) -> np.ndarray:
@@ -427,7 +430,9 @@ def parallelize_swaps(swaps: List[Tuple]) -> Dict:
     return groups
 
 
-# grids = [random_map(grid) for grid in grid_dimensions]
+grids = [random_map(grid) for grid in grid_dimensions]
+
+
 def approx_token_swapping(in_circuit: nx.Graph,
                           mapping: List[int]) -> List[Swap]:
 
@@ -438,26 +443,50 @@ def approx_token_swapping(in_circuit: nx.Graph,
     return parallel_permutations
 
 
-grids = np.load('grids.npy', allow_pickle='TRUE')
+speed_ups = list()
+stepping_comparison = list()
+# grids = np.load('grids.npy', allow_pickle='TRUE')
 for idx, maps in enumerate(grids):
     source = maps[0]
     target = maps[1]
+    # print(source)
+    # print(target)
     demo_circuit = nx.convert_node_labels_to_integers(
         nx.grid_2d_graph(*grid_dimensions[idx]))
 
     print(grid_dimensions[idx])
+    print('-' * len(str(grid_dimensions[idx])))
 
     start = time.process_time()
-    grid_route(source, target, True)
+    swaps = grid_route(source, target, True)
+    # print(swaps)
     time_local = time.process_time() - start
-    print(f"local: {time_local}")
+    num_steps_grid = len(swaps)
+    print(f"grid_algo\ntime: {time_local}, #steps: {num_steps_grid}")
+    print()
 
     start = time.process_time()
     demo_circuit_permutations = approx_token_swapping(
         demo_circuit, list((zip(source.flatten(), target.flatten()))))
     time_token_swap = time.process_time() - start
-    print(f"token swap: {time_token_swap}")
+    num_steps_token_swapping = len(demo_circuit_permutations)
+    print(
+        f"token swap\ntime: {time_token_swap}, #steps: {num_steps_token_swapping}"
+    )
+    print()
 
-    print(f"speedup: {time_token_swap/time_local}")
+    speed_up = time_token_swap / time_local
+    stepping_ratio =  num_steps_token_swapping / num_steps_grid
+    print(f"speedup (t_token / t_grid): {speed_up}")
+    print(f"stepping ratio (s_token / s_grid): {stepping_ratio}")
+    print()
+    print()
+
+    speed_ups.append(speed_up)
+    stepping_comparison.append(stepping_ratio)
+
+print(f"speed_ups: {speed_ups}")
+print(f"stepping ratios: {stepping_comparison}")
+print()
 
 # np.save('grids.npy', grids)
