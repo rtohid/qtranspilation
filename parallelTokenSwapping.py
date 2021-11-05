@@ -8,13 +8,14 @@ def check_inverted(dst_x, dst_y):
 # perform line routing
 # @param src: source indices
 # @param dst: destination indices
-def line_routing(src, dst):
+def line_routing(src, dst, verbose=False):
 	assert(len(src.shape) == 1)
 	assert(len(src) == len(dst))
 	n = len(src)
 	mapping = np.argsort(dst)
-	print("start position  = {}".format(src))
-	print("target position = {}".format(dst))
+	if verbose:
+		print("start position  = {}".format(src))
+		print("target position = {}".format(dst))
 	start = 0
 	current = src.copy()
 	iteration = 0
@@ -34,7 +35,8 @@ def line_routing(src, dst):
 		# print("current position = {}".format(current))
 		iteration += 1
 		start = 1 - start
-	print(swap_edges)		
+	if verbose:
+		print(swap_edges)		
 	return swap_edges
 
 # Given list of swap_edges for each row/column, reorder them for parallel execution (transposition)
@@ -42,7 +44,7 @@ def line_routing(src, dst):
 # @params m, n: m x n grid
 # @params col: column routing or row routing. Used to identify position of physical qbit
 # return swap gates on physical qubit in order 
-def parallelize_swap_gates(swap_edges, m, n, col=True):
+def parallelize_swap_gates(swap_edges, m, n, col=True, verbose=False):
 	swap_edges_in_parallel = []
 	if col:
 		num = n
@@ -69,9 +71,10 @@ def parallelize_swap_gates(swap_edges, m, n, col=True):
 		swap_edges_in_parallel.append(swap_edges_iter)
 	return swap_edges_in_parallel
 
-def round_1_column_routing(dst_column):
+def round_1_column_routing(dst_column, verbose=False):
 	# determine the intermediate_mapping: routing desitation in the first round
-	print("Round 1: column routing")
+	if verbose:
+		print("Round 1: column routing")
 	m, n = np.shape(dst_column)
 	intermediate_mapping = np.zeros([m, n], dtype=np.int32) - 1
 	# initiatilize how many destinations are available
@@ -101,8 +104,9 @@ def round_1_column_routing(dst_column):
 		# nx.draw(G, with_labels = True)
 		# plt.show()
 		mincostFlow = nx.max_flow_min_cost(G, 0, 2*n+1)
-		print("~~~~~~~~~~~~~~~~~~~~~~~")
-		print(mincostFlow)
+		if verbose:
+			print("~~~~~~~~~~~~~~~~~~~~~~~")
+			print(mincostFlow)
 		# find i-th matching: map the selected elements from current row to the i-th row
 		for u in mincostFlow:
 			if u == 0:
@@ -129,18 +133,20 @@ def round_1_column_routing(dst_column):
 	swap_edges = []
 	for i in range(n):
 		swap_edges.append(line_routing(np.arange(m), intermediate_mapping[:, i]))
-	print("swap_edges = ")
-	print(swap_edges)
-	# adjust order
-	print("parallelized swap_edges = ")
+	if verbose:
+		print("swap_edges = ")
+		print(swap_edges)
+		# adjust order
+		print("parallelized swap_edges = ")
 	p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
-	print(p_swap_edges)
-	print("depth = {}".format(len(p_swap_edges)))
-	return intermediate_mapping
+	if verbose:
+		print(p_swap_edges)
+		print("depth = {}".format(len(p_swap_edges)))
+	return intermediate_mapping, p_swap_edges
 
 def find_perfect_matching(dst_row, dst_column, current_row, matchings):
 	m, n = np.shape(dst_column)
-	print(m, n)
+	# print(m, n)
 	available_dst = np.zeros([n, n], dtype=np.int32)
 	for i in range(m):
 		for j in range(n):
@@ -194,9 +200,10 @@ def find_perfect_matching(dst_row, dst_column, current_row, matchings):
 				matching.append([required_src, required_dst, current_row + required_row_ind, current_row + dst_row[required_row_ind, required_src]])
 		matchings.append(matching)
 
-def round_1_column_routing_with_localism(dst_row, dst_column):
+def round_1_column_routing_with_localism(dst_row, dst_column, verbose=False):
 	# determine the intermediate_mapping: routing desitation in the first round
-	print("Round 1: column routing with localism")
+	if verbose:
+		print("Round 1: column routing with localism")
 	m, n = np.shape(dst_column)
 	intermediate_mapping = np.zeros([m, n], dtype=np.int32) - 1
 	matchings = []
@@ -209,10 +216,12 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 			if start < end:
 				find_perfect_matching(dst_row[start:end], dst_column[start:end], start, matchings)
 				start = end
-		print("window_size = {}, #matchings = {}".format(window_size, len(matchings)))
+		if verbose:
+			print("window_size = {}, #matchings = {}".format(window_size, len(matchings)))
 		window_size = 2*window_size
 	assert(len(matchings) == m)
-	print(matchings)
+	if verbose:
+		print(matchings)
 	# bottleneck bipartite perfect matching
 	distance = np.zeros([m, m])
 	for j in range(m):
@@ -224,7 +233,8 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 				dist += np.abs(matching[i][2] - k) + np.abs(matching[i][3] - k)
 			distance[j, k] = dist
 	# binary search based BBPM
-	print(distance)
+	if verbose:
+		print(distance)
 	bottleneck_matching = []
 	sorted_distance = np.sort(distance).reshape([-1])
 	while sorted_distance.size != 0:
@@ -269,7 +279,8 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 					bottleneck_matching.append([matching_ind, row_ind])
 			sorted_distance = sorted_distance[:mid]
 	# test correct result
-	print(bottleneck_matching)
+	if verbose:
+		print(bottleneck_matching)
 	# assign mapping
 	# intermediate_mapping[i, required_src] = required_row_ind
 	for i in range(len(bottleneck_matching)):
@@ -282,71 +293,82 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
 	swap_edges = []
 	for i in range(n):
 		swap_edges.append(line_routing(np.arange(m), intermediate_mapping[:, i]))
-	print("swap_edges = ")
-	print(swap_edges)
-	# adjust order
-	print("parallelized swap_edges = ")
+	if verbose:
+		print("swap_edges = ")
+		print(swap_edges)
+		# adjust order
+		print("parallelized swap_edges = ")
 	p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
-	print(p_swap_edges)
-	print("depth = {}".format(len(p_swap_edges)))
-	return intermediate_mapping
+	if verbose:
+		print(p_swap_edges)
+		print("depth = {}".format(len(p_swap_edges)))
+	return intermediate_mapping, p_swap_edges
 
 # route dst_column to the correct place
-def round_2_row_routing(dst_column):
-	print("Round 2: row routing")
+def round_2_row_routing(dst_column, verbose=False):
+	if verbose:
+		print("Round 2: row routing")
 	m, n = np.shape(dst_column)
 	intermediate_mapping = np.zeros([m, n], dtype=np.int32)
 	swap_edges = []
 	for i in range(m):
 		swap_edges.append(line_routing(dst_column[i, :], np.arange(n)))
 		intermediate_mapping[i, dst_column[i, :]] = np.arange(n)
-	print("swap_edges = ")
-	print(swap_edges)
+	if verbose:
+		print("swap_edges = ")
+		print(swap_edges)
 	p_swap_edges = parallelize_swap_gates(swap_edges, m, n, False)
-	print("parallelized swap_edges = ")
-	print(p_swap_edges)
-	print("depth = {}".format(len(p_swap_edges)))
-	return intermediate_mapping
+	if verbose:
+		print("parallelized swap_edges = ")
+		print(p_swap_edges)
+		print("depth = {}".format(len(p_swap_edges)))
+	return intermediate_mapping, p_swap_edges
 
 # rout dst_row to the correct place
-def round_3_column_routing(dst_row):
-	print("Round 3: column routing")
+def round_3_column_routing(dst_row, verbose=False):
+	if verbose:
+		print("Round 3: column routing")
 	m, n = np.shape(dst_row)
 	intermediate_mapping = np.zeros([m, n], dtype=np.int32)
 	swap_edges = []
 	for i in range(n):
 		swap_edges.append(line_routing(dst_row[:, i], np.arange(m)))
 		intermediate_mapping[dst_row[:, i], i] = np.arange(m)
-	print("swap_edges = ")
-	print(swap_edges)
+	if verbose:
+		print("swap_edges = ")
+		print(swap_edges)
 	p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
-	print("parallelized swap_edges = ")
-	print(p_swap_edges)
-	print("depth = {}".format(len(p_swap_edges)))
-	return intermediate_mapping
+	if verbose:
+		print("parallelized swap_edges = ")
+		print(p_swap_edges)
+		print("depth = {}".format(len(p_swap_edges)))
+	return intermediate_mapping, p_swap_edges
 
-def grid_route(src, dst, local=False):
+def grid_route(src, dst, local=True, verbose=False):
 	assert(len(src.shape) == 2)
 	assert(len(src) == len(dst))
 	# create mapping
 	m, n = np.shape(src)
 	arg_src = np.argsort(src.reshape([-1]))
 	arg_dst = np.argsort(dst.reshape([-1]))
-	print(arg_src)
-	print(arg_dst)
+	if verbose:
+		print(arg_src)
+		print(arg_dst)
 	mapping = np.zeros([m * n], dtype=np.int32)
 	mapping[arg_src] = arg_dst
 	dst_column = mapping.reshape([m, n]) % n
 	dst_row = mapping.reshape([m, n]) // n
-	print(dst_column)
-	print(dst_row)
+	if verbose:
+		print(dst_column)
+		print(dst_row)
 	# print(dst_column)
 	# print(dst_row)
 	if local:
-		intermediate_mapping = round_1_column_routing_with_localism(dst_row.copy(), dst_column.copy())
+		intermediate_mapping, p_swap_edge_1 = round_1_column_routing_with_localism(dst_row.copy(), dst_column.copy())
 	else:
-		intermediate_mapping = round_1_column_routing(dst_column.copy())
-	print(intermediate_mapping)
+		intermediate_mapping, p_swap_edge_1 = round_1_column_routing(dst_column.copy())
+	if verbose:
+		print(intermediate_mapping)
 	# swap dst_column and dst_row based on the intermediate_mapping
 	for i in range(n):
 		tmp = dst_column[:, i]
@@ -355,8 +377,9 @@ def grid_route(src, dst, local=False):
 		dst_row[:, i] = tmp[intermediate_mapping[:, i]]
 	# print(dst_column)
 	# print(dst_row)
-	intermediate_mapping = round_2_row_routing(dst_column.copy())
-	print(intermediate_mapping)
+	intermediate_mapping, p_swap_edge_2 = round_2_row_routing(dst_column.copy())
+	if verbose:
+		print(intermediate_mapping)
 	# swap dst_column and dst_row
 	for i in range(m):
 		tmp = dst_column[i, :]
@@ -365,16 +388,36 @@ def grid_route(src, dst, local=False):
 		dst_row[i, :] = tmp[intermediate_mapping[i, :]]
 	# print(dst_column)
 	# print(dst_row)
-	intermediate_mapping = round_3_column_routing(dst_row.copy())
-	print(intermediate_mapping)
+	intermediate_mapping, p_swap_edge_3 = round_3_column_routing(dst_row.copy())
+	if verbose:
+		print(intermediate_mapping)
 	# swap dst_column and dst_row based on the intermediate_mapping
 	for i in range(n):
 		tmp = dst_column[:, i]
 		dst_column[:, i] = tmp[intermediate_mapping[:, i]]
 		tmp = dst_row[:, i]
 		dst_row[:, i] = tmp[intermediate_mapping[:, i]]
-	print(dst_column)
-	print(dst_row)
+	if verbose:
+		print(dst_column)
+		print(dst_row)
+	p_swap_edges = p_swap_edge_1 + p_swap_edge_2 + p_swap_edge_3
+	if verbose:
+		print("depth = {}".format(len(p_swap_edges)))
+	return p_swap_edges
+
+def grid_route_two_directions(src, dst, local=True, verbose=False):
+	m, n = np.shape(src)
+	swap_edges_1 = grid_route(a, b, local)
+	swap_edges_2 = grid_route(np.transpose(a), np.transpose(b), local)
+	if len(swap_edges_1)*10 <= len(swap_edges_2):
+		return swap_edges_1
+	else:
+		# transpose swap gates
+		for lis in swap_edges_2:
+			for pair in lis:
+				pair[0] = (pair[0] % m) * n + (pair[0] // m)
+				pair[1] = (pair[1] % m) * n + (pair[1] // m)
+		return swap_edges_2
 
 # test routing
 n1 = 6
@@ -387,7 +430,11 @@ b = np.random.permutation(n1*n2).reshape([n1, n2])
 print(a)
 print(b)
 import sys
-local = 0
-if len(sys.argv) > 1:
-	local = int(sys.argv[1])
-grid_route(a, b, local)
+# local = 0
+# if len(sys.argv) > 1:
+# 	local = int(sys.argv[1])
+swap_edges_nonlocal = grid_route_two_directions(a, b, 0)
+swap_edges_local = grid_route_two_directions(a, b, 1)
+print("depth_nonlocal = ", len(swap_edges_nonlocal))
+print("depth_local = ", len(swap_edges_local))
+
