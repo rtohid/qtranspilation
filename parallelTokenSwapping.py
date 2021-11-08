@@ -407,8 +407,8 @@ def grid_route(src, dst, local=True, verbose=False):
 
 def grid_route_two_directions(src, dst, local=True, verbose=False):
 	m, n = np.shape(src)
-	swap_edges_1 = grid_route(a, b, local)
-	swap_edges_2 = grid_route(np.transpose(a), np.transpose(b), local)
+	swap_edges_1 = grid_route(src, dst, local)
+	swap_edges_2 = grid_route(np.transpose(src), np.transpose(dst), local)
 	if len(swap_edges_1)*10 <= len(swap_edges_2):
 		return swap_edges_1
 	else:
