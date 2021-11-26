@@ -254,7 +254,7 @@ def round_1_column_routing_with_localism(dst_row, dst_column, verbose=False):
 		# add bipartitie connection
 		for j in range(m):
 			for k in range(m):
-				if distance[j, k] < delta:
+				if distance[j, k] <= delta:
 					H.add_edge(1+j, m+1+k, capacity=1, weight=distance[j, k])
 		# find matching
 		flowValue, maxFlow = nx.algorithms.flow.maximum_flow(H, 0, 2*m+1)
@@ -364,9 +364,9 @@ def grid_route(src, dst, local=True, verbose=False):
 	# print(dst_column)
 	# print(dst_row)
 	if local:
-		intermediate_mapping, p_swap_edge_1 = round_1_column_routing_with_localism(dst_row.copy(), dst_column.copy())
+		intermediate_mapping, p_swap_edge_1 = round_1_column_routing_with_localism(dst_row.copy(), dst_column.copy(), verbose)
 	else:
-		intermediate_mapping, p_swap_edge_1 = round_1_column_routing(dst_column.copy())
+		intermediate_mapping, p_swap_edge_1 = round_1_column_routing(dst_column.copy(), verbose)
 	if verbose:
 		print(intermediate_mapping)
 	# swap dst_column and dst_row based on the intermediate_mapping
@@ -377,7 +377,7 @@ def grid_route(src, dst, local=True, verbose=False):
 		dst_row[:, i] = tmp[intermediate_mapping[:, i]]
 	# print(dst_column)
 	# print(dst_row)
-	intermediate_mapping, p_swap_edge_2 = round_2_row_routing(dst_column.copy())
+	intermediate_mapping, p_swap_edge_2 = round_2_row_routing(dst_column.copy(), verbose)
 	if verbose:
 		print(intermediate_mapping)
 	# swap dst_column and dst_row
@@ -388,7 +388,7 @@ def grid_route(src, dst, local=True, verbose=False):
 		dst_row[i, :] = tmp[intermediate_mapping[i, :]]
 	# print(dst_column)
 	# print(dst_row)
-	intermediate_mapping, p_swap_edge_3 = round_3_column_routing(dst_row.copy())
+	intermediate_mapping, p_swap_edge_3 = round_3_column_routing(dst_row.copy(), verbose)
 	if verbose:
 		print(intermediate_mapping)
 	# swap dst_column and dst_row based on the intermediate_mapping
@@ -407,9 +407,9 @@ def grid_route(src, dst, local=True, verbose=False):
 
 def grid_route_two_directions(src, dst, local=True, verbose=False):
 	m, n = np.shape(src)
-	swap_edges_1 = grid_route(src, dst, local)
-	swap_edges_2 = grid_route(np.transpose(src), np.transpose(dst), local)
-	if len(swap_edges_1)*10 <= len(swap_edges_2):
+	swap_edges_1 = grid_route(src, dst, local, verbose)
+	swap_edges_2 = grid_route(np.transpose(src), np.transpose(dst), local, verbose)
+	if len(swap_edges_1) <= len(swap_edges_2):
 		return swap_edges_1
 	else:
 		# transpose swap gates
@@ -424,6 +424,9 @@ n1 = 6
 n2 = 6
 a = np.random.permutation(n1*n2).reshape([n1, n2])
 b = np.random.permutation(n1*n2).reshape([n1, n2])
+# a = np.array([(0, 1), (2, 3)])
+# b = np.array([(2, 0), (3, 1)])
+
 # using Avah's example
 # a = np.arange(15).reshape([5, 3])
 # b = np.array([1, 5, 4, 0, 2, 3, 6, 10, 12, 13, 9, 7, 11, 14, 8]).reshape([5, 3])
@@ -434,7 +437,7 @@ import sys
 # if len(sys.argv) > 1:
 # 	local = int(sys.argv[1])
 swap_edges_nonlocal = grid_route_two_directions(a, b, 0)
-swap_edges_local = grid_route_two_directions(a, b, 1)
 print("depth_nonlocal = ", len(swap_edges_nonlocal))
+swap_edges_local = grid_route_two_directions(a, b, 1)
 print("depth_local = ", len(swap_edges_local))
 
