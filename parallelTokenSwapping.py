@@ -145,6 +145,9 @@ def round_1_column_routing(dst_column, verbose=False):
 	return intermediate_mapping, p_swap_edges
 
 def find_perfect_matching(dst_row, dst_column, current_row, matchings):
+	# print("current_row = ", current_row)
+	# print("dst_row = ", dst_row)
+	# print("dst_column = ", dst_column)
 	m, n = np.shape(dst_column)
 	# print(m, n)
 	available_dst = np.zeros([n, n], dtype=np.int32)
@@ -197,7 +200,7 @@ def find_perfect_matching(dst_row, dst_column, current_row, matchings):
 				# mark the corresponding data as mapped
 				dst_column[required_row_ind, required_src] = -1
 				# record matching [j, j', i, i']
-				matching.append([required_src, required_dst, current_row + required_row_ind, current_row + dst_row[required_row_ind, required_src]])
+				matching.append([required_src, required_dst, current_row + required_row_ind, dst_row[required_row_ind, required_src]])
 		matchings.append(matching)
 
 def round_1_column_routing_with_localism(dst_row, dst_column, verbose=False):
@@ -221,7 +224,7 @@ def round_1_column_routing_with_localism(dst_row, dst_column, verbose=False):
 		window_size = 2*window_size
 	assert(len(matchings) == m)
 	if verbose:
-		print(matchings)
+		print("match = ", matchings)
 	# bottleneck bipartite perfect matching
 	distance = np.zeros([m, m])
 	for j in range(m):
@@ -234,7 +237,7 @@ def round_1_column_routing_with_localism(dst_row, dst_column, verbose=False):
 			distance[j, k] = dist
 	# binary search based BBPM
 	if verbose:
-		print(distance)
+		print("distance = ", distance)
 	bottleneck_matching = []
 	sorted_distance = np.sort(distance).reshape([-1])
 	while sorted_distance.size != 0:
@@ -420,24 +423,29 @@ def grid_route_two_directions(src, dst, local=True, verbose=False):
 		return swap_edges_2
 
 # test routing
-n1 = 6
-n2 = 6
-a = np.random.permutation(n1*n2).reshape([n1, n2])
-b = np.random.permutation(n1*n2).reshape([n1, n2])
+# n1 = 6
+# n2 = 6
+# a = np.random.permutation(n1*n2).reshape([n1, n2])
+# b = np.random.permutation(n1*n2).reshape([n1, n2])
 # a = np.array([(0, 1), (2, 3)])
 # b = np.array([(2, 0), (3, 1)])
 
 # using Avah's example
 # a = np.arange(15).reshape([5, 3])
 # b = np.array([1, 5, 4, 0, 2, 3, 6, 10, 12, 13, 9, 7, 11, 14, 8]).reshape([5, 3])
+
+a = np.asarray([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]).reshape(4, 4)
+b = np.asarray([ 1, 0, 2, 3, 5, 4, 6, 7, 9, 8, 10, 11, 13, 12, 14, 15]).reshape(4, 4)
 print(a)
 print(b)
 import sys
 # local = 0
 # if len(sys.argv) > 1:
 # 	local = int(sys.argv[1])
-swap_edges_nonlocal = grid_route_two_directions(a, b, 0)
+swap_edges_nonlocal = grid_route(a, b, 0)
+# swap_edges_nonlocal = grid_route_two_directions(a, b, 0)
 print("depth_nonlocal = ", len(swap_edges_nonlocal))
-swap_edges_local = grid_route_two_directions(a, b, 1)
+swap_edges_local = grid_route(a, b, 1, True)
+# swap_edges_local = grid_route_two_directions(a, b, 1)
 print("depth_local = ", len(swap_edges_local))
 
