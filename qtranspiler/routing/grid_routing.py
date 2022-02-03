@@ -144,7 +144,7 @@ def find_perfect_matching(dst_row, dst_column, current_row, matchings):
                 # record matching [j, j', i, i']
                 matching.append([
                     required_src, required_dst, current_row + required_row_ind,
-                    current_row + dst_row[required_row_ind, required_src]
+                    dst_row[required_row_ind, required_src]
                 ])
         matchings.append(matching)
 
@@ -239,7 +239,7 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
             line_routing(np.arange(m), intermediate_mapping[:, i]))
     # adjust order
     p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
-    return p_swap_edges, intermediate_mapping
+    return intermediate_mapping, p_swap_edges
 
 
 def round_1_column_routing(dst_column):
@@ -313,7 +313,8 @@ def round_1_column_routing(dst_column):
             line_routing(np.arange(num_rows), intermediate_mapping[:, i]))
     # adjust order
     p_swap_edges = parallelize_swap_gates(swap_edges, num_rows, num_cols)
-    return p_swap_edges, intermediate_mapping
+    return intermediate_mapping, p_swap_edges
+
 
 def round_2_row_routing(dst_column):
     """route dst_column to the correct place."""
@@ -323,8 +324,9 @@ def round_2_row_routing(dst_column):
     for i in range(num_rows):
         swap_edges.append(line_routing(dst_column[i, :], np.arange(num_cols)))
         intermediate_mapping[i, dst_column[i, :]] = np.arange(num_cols)
-    p_swap_edges = parallelize_swap_gates(swap_edges, num_rows, num_cols, False)
-    return p_swap_edges, intermediate_mapping
+    p_swap_edges = parallelize_swap_gates(swap_edges, num_rows, num_cols,
+                                          False)
+    return intermediate_mapping, p_swap_edges
 
 
 def round_3_column_routing(dst_row):
@@ -336,15 +338,16 @@ def round_3_column_routing(dst_row):
         swap_edges.append(line_routing(dst_row[:, i], np.arange(m)))
         intermediate_mapping[dst_row[:, i], i] = np.arange(m)
     p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
-    return p_swap_edges, intermediate_mapping
+    return intermediate_mapping, p_swap_edges
 
-def grid_route(src: Grid, dst: np.ndarray, local=True):
+
+def grid_route(src: np.ndarray, dst: np.ndarray, local=True):
 
     if len(src.shape) != 2:
         raise ValueError(
             f"Invalid grid dimensions ({src.shape}). Expecting 2d grids.")
 
-    if src.size() != dst.size:
+    if src.size != dst.size:
         err = "Source and destination must be of the same dimension.\n   "
         err = err + f"Source shape ({src.shape}), destination shape({dst.shape})"
         raise ValueError(err)
@@ -353,44 +356,54 @@ def grid_route(src: Grid, dst: np.ndarray, local=True):
 
     num_rows, num_cols = src.shape
 
-    arg_src = np.argsort(src.labels()).reshape(src.shape)
-    arg_dst = np.argsort(dst).reshape(src.shape)
-    mapping = np.zeros(src.size(), dtype=np.int32)
+    arg_src = np.argsort(src.reshape([-1]))
+    arg_dst = np.argsort(dst.reshape([-1]))
+    mapping = np.zeros(src.size, dtype=np.int32)
     mapping[arg_src] = arg_dst
 
     dst_column = mapping.reshape([num_rows, num_cols]) % num_cols
     dst_row = mapping.reshape([num_rows, num_cols]) // num_cols
-    swaps, intermediate_mapping = round_1_column_routing(dst_column.copy())
+
     if local:
-        swaps, intermediate_mapping = round_1_column_routing_with_localism(
+        intermediate_mapping, swaps_1 = round_1_column_routing_with_localism(
             dst_row.copy(), dst_column.copy())
     else:
-        swaps, intermediate_mapping = round_1_column_routing(dst_column.copy())
-    if swaps:
-        swap_gates += swaps
+        intermediate_mapping, swaps_1 = round_1_column_routing(
+            dst_column.copy())
     # swap dst_column and dst_row based on the intermediate_mapping
     for i in range(num_cols):
         tmp = dst_column[:, i]
         dst_column[:, i] = tmp[intermediate_mapping[:, i]]
         tmp = dst_row[:, i]
         dst_row[:, i] = tmp[intermediate_mapping[:, i]]
-    swaps, intermediate_mapping = round_2_row_routing(dst_column.copy())
-    if swaps:
-        swap_gates += swaps
+    intermediate_mapping, swaps_2 = round_2_row_routing(dst_column.copy())
     # swap dst_column and dst_row
     for i in range(num_rows):
         tmp = dst_column[i, :]
         dst_column[i, :] = tmp[intermediate_mapping[i, :]]
         tmp = dst_row[i, :]
         dst_row[i, :] = tmp[intermediate_mapping[i, :]]
-    swaps, intermediate_mapping = round_3_column_routing(dst_row.copy())
-    if swaps:
-        swap_gates += swaps
+    intermediate_mapping, swaps_3 = round_3_column_routing(dst_row.copy())
     # swap dst_column and dst_row based on the intermediate_mapping
     for i in range(num_cols):
         tmp = dst_column[:, i]
         dst_column[:, i] = tmp[intermediate_mapping[:, i]]
         tmp = dst_row[:, i]
         dst_row[:, i] = tmp[intermediate_mapping[:, i]]
-
+    swap_gates = swaps_1 + swaps_2 + swaps_3
     return swap_gates
+
+
+def grid_route_two_directions(src, dst, local=True):
+    m, n = np.shape(src)
+    swap_edges_1 = grid_route(src, dst, local)
+    swap_edges_2 = grid_route(np.transpose(src), np.transpose(dst), local)
+    if len(swap_edges_1) <= len(swap_edges_2):
+        return swap_edges_1
+    else:
+        # transpose swap gates
+        for lis in swap_edges_2:
+            for pair in lis:
+                pair[0] = (pair[0] % m) * n + (pair[0] // m)
+                pair[1] = (pair[1] % m) * n + (pair[1] // m)
+        return swap_edges_2

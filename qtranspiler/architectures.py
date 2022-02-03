@@ -14,7 +14,9 @@ class Grid:
     def __init__(self, num_rows: int, num_cols: int) -> None:
         self.height = num_rows
         self.width = num_cols
-        self.shape_ = (self.height, self.width)
+        self.shape = (self.height, self.width)
+        self.size = self.height * self.width
+
         self.graph = self.build_graph()
 
     def build_graph(self):
@@ -27,13 +29,5 @@ class Grid:
     def labels(self, **kwargs):
         return np.array(self.graph)
 
-    def size(self) -> int:
-        return self.height * self.width
-
-    @property
-    def shape(self) -> Tuple:
-        return self.shape_
-
-    @shape.setter
-    def shape(self) -> Tuple:
-        self.shape_ = (self.height, self.width)
+    def numpy_array(self):
+        return self.labels().reshape(self.shape)
