@@ -48,8 +48,8 @@ class Profile:
 
 
 def blocked_random_map(grid: Grid,
-                     depth: int = None,
-                     width: int = None) -> np.ndarray:
+                       depth: int = None,
+                       width: int = None) -> np.ndarray:
     mapping = grid.labels()
     h, w = grid.shape
     if not depth:
@@ -67,6 +67,47 @@ def blocked_random_map(grid: Grid,
             mapping[c.flatten()] = np.random.permutation(c.flatten())
 
     return mapping
+
+
+def local_random_permutations(grid: Grid,
+                              cluster_size: int,
+                              delta_row: int = 0,
+                              delta_col: int = 0):
+
+    def random_cluster_bounds():
+        while True:
+            index = np.random.randint(grid.size)
+            if index in not_yet_picked:
+                row = index // grid.width
+                column = index - (row * grid.width)
+                lower_row = np.random.randint(max(0, row - delta_row), row + 1)
+                upper_row = np.random.randint(
+                    row,
+                    min(row + delta_row, grid.height) + 1)
+                lower_col = np.random.randint(max(0, column - delta_col),
+                                              column + 1)
+                upper_col = np.random.randint(
+                    column,
+                    min(column + delta_col, grid.width) + 1)
+                if lower_col == upper_col or lower_row == upper_row:
+                    continue
+                not_yet_picked.remove(index)
+                return (lower_row, upper_row, lower_col, upper_col)
+
+    not_yet_picked = set(range(grid.size))
+    num_clusters = grid.size // cluster_size
+    new_map = np.arange(grid.size).reshape(grid.shape)
+
+    for i in range(num_clusters):
+        lower_row, upper_row, lower_col, upper_col = random_cluster_bounds()
+        height = upper_row - lower_row
+        width = upper_col - lower_col
+        new_map[lower_row:upper_row,
+                lower_col:upper_col] = np.random.permutation(
+                    new_map[lower_row:upper_row,
+                            lower_col:upper_col].flatten()).reshape(
+                                height, width)
+    return new_map.flatten()
 
 
 def random_map(grid: Grid) -> np.ndarray:
