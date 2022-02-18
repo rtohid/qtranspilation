@@ -66,7 +66,7 @@ def blocked_random_map(grid: Grid,
         for c in col:
             mapping[c.flatten()] = np.random.permutation(c.flatten())
 
-    return mapping
+    return mapping.reshape(grid.shape)
 
 
 def local_random_permutations(grid: Grid,
@@ -107,7 +107,7 @@ def local_random_permutations(grid: Grid,
                     new_map[lower_row:upper_row,
                             lower_col:upper_col].flatten()).reshape(
                                 height, width)
-    return new_map.flatten()
+    return new_map
 
 
 def random_map(grid: Grid) -> np.ndarray:
