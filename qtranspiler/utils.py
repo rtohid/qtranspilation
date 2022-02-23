@@ -43,7 +43,7 @@ class Profile:
         name = f"function: {self.func.__name__}\n"
         args = f"args: {self.args}\n"
         kwargs = f"kwargs: {self.kwargs}\n"
-        timing = f"time: {self.time}"
+        timing = f"time: {self.times}"
         return name + args + kwargs + timing
 
 
@@ -115,7 +115,7 @@ def random_map(grid: Grid) -> np.ndarray:
     size = grid.size
     new_map = np.arange(size)
     np.random.shuffle(new_map)
-    return new_map
+    return new_map.reshape(grid.shape)
 
 
 def profile_func(func, num_runs, *args, **kwargs):
