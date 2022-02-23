@@ -23,6 +23,7 @@ def line_routing(src, dst, verbose=False):
 	while np.count_nonzero(current == dst) != n:
 		# check edges
 		swap_edge = []
+		# odd or even first?
 		for i in range(start, n - 1, 2):
 			if check_inverted(mapping[current[i]], mapping[current[i+1]]):
 				# swap
@@ -30,7 +31,8 @@ def line_routing(src, dst, verbose=False):
 				current[i] = current[i+1]
 				current[i+1] = tmp
 				swap_edge.append([i, i+1])
-		swap_edges.append(swap_edge)
+		if len(swap_edge) > 0:
+			swap_edges.append(swap_edge)
 		# print("swap_edges in iteration {}: {}".format(iteration, swap_edge))
 		# print("current position = {}".format(current))
 		iteration += 1
@@ -224,7 +226,9 @@ def round_1_column_routing_with_localism(dst_row, dst_column, verbose=False):
 		window_size = 2*window_size
 	assert(len(matchings) == m)
 	if verbose:
-		print("match = ", matchings)
+		print("matchings: ")
+		for match in matchings:
+			print(match)
 	# bottleneck bipartite perfect matching
 	distance = np.zeros([m, m])
 	for j in range(m):
@@ -237,12 +241,19 @@ def round_1_column_routing_with_localism(dst_row, dst_column, verbose=False):
 			distance[j, k] = dist
 	# binary search based BBPM
 	if verbose:
-		print("distance = ", distance)
+		print("distance = \n", distance)
 	bottleneck_matching = []
-	sorted_distance = np.sort(distance).reshape([-1])
+	sorted_distance = np.sort(distance.reshape([-1]))
 	while sorted_distance.size != 0:
 		mid = sorted_distance.size // 2
 		delta = sorted_distance[mid]
+		# print("distance computation:")
+		# print(sorted_distance)
+		# print(mid, delta)
+		# tmp = distance.copy()
+		# print(tmp)
+		# tmp[tmp > delta] = -1
+		# print(tmp)
 		# create complete bipartite graph H
 		H = nx.DiGraph()
 		# build flow network
@@ -281,6 +292,8 @@ def round_1_column_routing_with_localism(dst_row, dst_column, verbose=False):
 					row_ind = v - (m + 1)
 					bottleneck_matching.append([matching_ind, row_ind])
 			sorted_distance = sorted_distance[:mid]
+			# print("matching found")
+			# print(bottleneck_matching)
 	# test correct result
 	if verbose:
 		print(bottleneck_matching)
@@ -359,6 +372,7 @@ def grid_route(src, dst, local=True, verbose=False):
 		print(arg_dst)
 	mapping = np.zeros([m * n], dtype=np.int32)
 	mapping[arg_src] = arg_dst
+	print(mapping.reshape([m, n]))
 	dst_column = mapping.reshape([m, n]) % n
 	dst_row = mapping.reshape([m, n]) // n
 	if verbose:
@@ -434,17 +448,35 @@ def grid_route_two_directions(src, dst, local=True, verbose=False):
 # a = np.arange(15).reshape([5, 3])
 # b = np.array([1, 5, 4, 0, 2, 3, 6, 10, 12, 13, 9, 7, 11, 14, 8]).reshape([5, 3])
 
-a = np.asarray([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]).reshape(4, 4)
-b = np.asarray([ 1, 0, 2, 3, 5, 4, 6, 7, 9, 8, 10, 11, 13, 12, 14, 15]).reshape(4, 4)
+# a = np.asarray([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]).reshape(4, 4)
+# b = np.asarray([ 1, 0, 2, 3, 5, 4, 6, 7, 9, 8, 10, 11, 13, 12, 14, 15]).reshape(4, 4)
+# a = np.arange(16).reshape(4, 4)
+# b = np.asarray([14, 5, 7, 10, 1, 3, 6, 9, 2, 13, 11, 0, 4, 15, 8,
+#                 12]).reshape(4, 4)
+# a = np.arange(64).reshape(8, 8)
+# b = np.asarray([
+#     56, 58, 19, 39, 8, 27, 23, 48, 42, 11, 33, 30, 29, 21, 52, 46, 47, 22, 41,
+#     63, 61, 26, 32, 13, 24, 43, 3, 2, 36, 35, 14, 6, 57, 4, 16, 25, 40, 51, 59,
+#     18, 45, 44, 37, 50, 54, 60, 55, 15, 28, 34, 49, 10, 38, 20, 62, 5, 1, 53,
+#     17, 0, 7, 9, 12, 31
+# ]).reshape(8, 8)
+a = np.asarray([0, 1, 3, 2, 4, 5,
+				6, 14, 7, 9, 10, 11,
+				12, 13, 8, 15, 16, 17,
+				24, 19, 20, 21, 22, 23,
+				18, 25, 26, 27, 28, 29,
+				30, 31, 32, 33, 34, 35]).reshape(6, 6)
+b = np.arange(36).reshape(6, 6)
+
 print(a)
 print(b)
 import sys
 # local = 0
 # if len(sys.argv) > 1:
 # 	local = int(sys.argv[1])
-swap_edges_nonlocal = grid_route(a, b, 0)
+# swap_edges_nonlocal = grid_route(a, b, 0)
 # swap_edges_nonlocal = grid_route_two_directions(a, b, 0)
-print("depth_nonlocal = ", len(swap_edges_nonlocal))
+# print("depth_nonlocal = ", len(swap_edges_nonlocal))
 swap_edges_local = grid_route(a, b, 1, True)
 # swap_edges_local = grid_route_two_directions(a, b, 1)
 print("depth_local = ", len(swap_edges_local))
