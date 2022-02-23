@@ -42,7 +42,8 @@ def line_routing(src, dst):
                 current[i] = current[i + 1]
                 current[i + 1] = tmp
                 swap_edge.append([i, i + 1])
-        swap_edges.append(swap_edge)
+        if len(swap_edge) > 0:
+            swap_edges.append(swap_edge)
         iteration += 1
         start = 1 - start
     return swap_edges
@@ -178,7 +179,7 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
             distance[j, k] = dist
     # binary search based BBPM
     bottleneck_matching = []
-    sorted_distance = np.sort(distance).reshape([-1])
+    sorted_distance = np.sort(distance.reshape([-1]))
     while sorted_distance.size != 0:
         mid = sorted_distance.size // 2
         delta = sorted_distance[mid]
