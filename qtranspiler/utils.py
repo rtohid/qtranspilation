@@ -20,7 +20,7 @@ class Profile:
         self.return_values = list()
         self.times = list()
 
-    def add_run(self, args, kwargs):
+    def add_run(self, *args, **kwargs):
         start = time.perf_counter()
         return_value = self.func(*args, **kwargs)
         end = time.perf_counter()
@@ -118,9 +118,9 @@ def random_map(grid: Grid) -> np.ndarray:
     return new_map.reshape(grid.shape)
 
 
-def profile_func(func, num_runs, *args, **kwargs):
-    runs = Profile(func)
-    for _ in range(num_runs):
-        runs.add_run(args, kwargs)
+# def profile_func(func, num_runs, *args, **kwargs):
+#     runs = Profile(func)  
+#     for _ in range(num_runs):
+#         runs.add_run(args, kwargs)
 
-    return runs
+#     return runs
