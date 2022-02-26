@@ -57,6 +57,9 @@ def blocked_random_map(grid: Grid,
     if not width:
         width = w
 
+    depth = h // depth
+    width = w // width
+
     # Break the grid down into (almost) equal blocks.
     rows = np.array_split(mapping.reshape(grid.shape), depth, axis=0)
     cols = [np.array_split(row, width, axis=1) for row in rows]
@@ -97,16 +100,17 @@ def local_random_permutations(grid: Grid,
     not_yet_picked = set(range(grid.size))
     num_clusters = grid.size // cluster_size
     new_map = np.arange(grid.size).reshape(grid.shape)
+    mask_array = np.zeros(grid.shape)
 
-    for i in range(num_clusters):
+    for _ in range(num_clusters):
         lower_row, upper_row, lower_col, upper_col = random_cluster_bounds()
-        height = upper_row - lower_row
-        width = upper_col - lower_col
-        new_map[lower_row:upper_row,
-                lower_col:upper_col] = np.random.permutation(
-                    new_map[lower_row:upper_row,
-                            lower_col:upper_col].flatten()).reshape(
-                                height, width)
+        new_map_mask = np.ma.masked_array(new_map, mask=mask_array)
+        subarray = new_map_mask[lower_row:upper_row, lower_col:upper_col]
+        subarray[~subarray.mask] = np.random.permutation(
+            subarray[~subarray.mask])
+        updated = new_map - np.arange(grid.size).reshape(grid.shape)
+        mask_array = np.where(updated != 0, 1, updated)
+
     return new_map
 
 
@@ -116,11 +120,3 @@ def random_map(grid: Grid) -> np.ndarray:
     new_map = np.arange(size)
     np.random.shuffle(new_map)
     return new_map.reshape(grid.shape)
-
-
-# def profile_func(func, num_runs, *args, **kwargs):
-#     runs = Profile(func)  
-#     for _ in range(num_runs):
-#         runs.add_run(args, kwargs)
-
-#     return runs
