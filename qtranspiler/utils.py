@@ -47,6 +47,17 @@ class Profile:
         return name + args + kwargs + timing
 
 
+def partial_transposition(grid: Grid, num_swaps: int = 0) -> np.ndarray:
+    mapping = grid.labels()
+    if (num_swaps * 2 > grid.size):
+        raise ValueError("Too many swaps.")
+    swaps = np.random.choice(mapping, size=num_swaps * 2, replace=False)
+    for i in range(0, len(swaps), 2):
+        mapping[swaps[i]], mapping[swaps[i + 1]] = (mapping[swaps[i + 1]],
+                                                    mapping[swaps[i]])
+    return mapping.reshape(grid.shape)
+
+
 def blocked_random_map(grid: Grid,
                        depth: int = None,
                        width: int = None) -> np.ndarray:
