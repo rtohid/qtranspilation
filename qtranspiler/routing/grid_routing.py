@@ -7,16 +7,14 @@
 import networkx as nx
 import numpy as np
 
-from qtranspiler.architectures import Grid
-
 
 def check_inverted(dst_x, dst_y):
-    return (dst_x > dst_y)
+    return dst_x > dst_y
 
 
 def line_routing(src, dst):
     """Perform line routing.
-    
+
     @param src: source indices
     @param dst: destination indices
     """
@@ -55,7 +53,7 @@ def parallelize_swap_gates(swap_edges, m, n, col=True):
     @params swap_edges: swap_edges collected by line_routing
     @params m, n: m x n grid
     @params col: column routing or row routing. Used to identify position of physical qbit
-    
+
     return swap gates on physical qubit in order
     """
 
@@ -108,13 +106,8 @@ def find_perfect_matching(dst_row, dst_column, current_row, matchings):
         # add bipartitie connection
         for j in range(m):
             for k in range(n):
-                if dst_column[j, k] != -1 and available_dst[k,
-                                                            dst_column[j,
-                                                                       k]] > 0:
-                    G.add_edge(1 + k,
-                               n + 1 + dst_column[j, k],
-                               capacity=1,
-                               weight=1)
+                if dst_column[j, k] != -1 and available_dst[k, dst_column[j, k]] > 0:
+                    G.add_edge(1 + k, n + 1 + dst_column[j, k], capacity=1, weight=1)
         # nx.draw(G, with_labels = True)
         # plt.show()
         flowValue, maxFlow = nx.algorithms.flow.maximum_flow(G, 0, 2 * n + 1)
@@ -137,16 +130,21 @@ def find_perfect_matching(dst_row, dst_column, current_row, matchings):
                 required_dst = v - (n + 1)
                 # find row index in the required source column
                 required_row_ind = np.where(
-                    dst_column[:, required_src] == required_dst)[0][0]
+                    dst_column[:, required_src] == required_dst
+                )[0][0]
                 # decrement available destination from src to dst
                 available_dst[required_src, required_dst] -= 1
                 # mark the corresponding data as mapped
                 dst_column[required_row_ind, required_src] = -1
                 # record matching [j, j', i, i']
-                matching.append([
-                    required_src, required_dst, current_row + required_row_ind,
-                    dst_row[required_row_ind, required_src]
-                ])
+                matching.append(
+                    [
+                        required_src,
+                        required_dst,
+                        current_row + required_row_ind,
+                        dst_row[required_row_ind, required_src],
+                    ]
+                )
         matchings.append(matching)
 
 
@@ -162,11 +160,12 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
         for i in range(m // window_size + 1):
             end = np.min([start + window_size, m])
             if start < end:
-                find_perfect_matching(dst_row[start:end],
-                                      dst_column[start:end], start, matchings)
+                find_perfect_matching(
+                    dst_row[start:end], dst_column[start:end], start, matchings
+                )
                 start = end
         window_size = 2 * window_size
-    assert (len(matchings) == m)
+    assert len(matchings) == m
     # bottleneck bipartite perfect matching
     distance = np.zeros([m, m])
     for j in range(m):
@@ -198,15 +197,12 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
         for j in range(m):
             for k in range(m):
                 if distance[j, k] <= delta:
-                    H.add_edge(1 + j,
-                               m + 1 + k,
-                               capacity=1,
-                               weight=distance[j, k])
+                    H.add_edge(1 + j, m + 1 + k, capacity=1, weight=distance[j, k])
         # find matching
         flowValue, maxFlow = nx.algorithms.flow.maximum_flow(H, 0, 2 * m + 1)
         if flowValue < m:
             # no perfect matching
-            sorted_distance = sorted_distance[mid + 1:]
+            sorted_distance = sorted_distance[mid + 1 :]
         else:
             # perfect matching found
             # record matching
@@ -236,8 +232,7 @@ def round_1_column_routing_with_localism(dst_row, dst_column):
     # perform column routing
     swap_edges = []
     for i in range(n):
-        swap_edges.append(
-            line_routing(np.arange(m), intermediate_mapping[:, i]))
+        swap_edges.append(line_routing(np.arange(m), intermediate_mapping[:, i]))
     # adjust order
     p_swap_edges = parallelize_swap_gates(swap_edges, m, n)
     return intermediate_mapping, p_swap_edges
@@ -268,19 +263,15 @@ def round_1_column_routing(dst_column):
         # add source and sink edges
         for j in range(num_cols):
             G.add_edge(0, j + 1, capacity=1, weight=1)
-            G.add_edge(num_cols + 1 + j,
-                       2 * num_cols + 1,
-                       capacity=1,
-                       weight=1)
+            G.add_edge(num_cols + 1 + j, 2 * num_cols + 1, capacity=1, weight=1)
 
         # add bipartitie connection
         for j in range(num_rows):
             for k in range(num_cols):
                 if available_dst[k, dst_column[j, k]] > 0:
-                    G.add_edge(1 + k,
-                               num_cols + 1 + dst_column[j, k],
-                               capacity=1,
-                               weight=1)
+                    G.add_edge(
+                        1 + k, num_cols + 1 + dst_column[j, k], capacity=1, weight=1
+                    )
 
         mincostFlow = nx.max_flow_min_cost(G, 0, 2 * num_cols + 1)
 
@@ -299,7 +290,8 @@ def round_1_column_routing(dst_column):
                 required_dst = v - (num_cols + 1)
                 # find row index in the required source column
                 required_row_ind = np.where(
-                    dst_column[:, required_src] == required_dst)[0][0]
+                    dst_column[:, required_src] == required_dst
+                )[0][0]
                 # decrement available destination from src to dst
                 available_dst[required_src, required_dst] -= 1
                 # mark the corresponding data as mapped
@@ -310,8 +302,7 @@ def round_1_column_routing(dst_column):
     # perform column routing
     swap_edges = []
     for i in range(num_cols):
-        swap_edges.append(
-            line_routing(np.arange(num_rows), intermediate_mapping[:, i]))
+        swap_edges.append(line_routing(np.arange(num_rows), intermediate_mapping[:, i]))
     # adjust order
     p_swap_edges = parallelize_swap_gates(swap_edges, num_rows, num_cols)
     return intermediate_mapping, p_swap_edges
@@ -325,8 +316,7 @@ def round_2_row_routing(dst_column):
     for i in range(num_rows):
         swap_edges.append(line_routing(dst_column[i, :], np.arange(num_cols)))
         intermediate_mapping[i, dst_column[i, :]] = np.arange(num_cols)
-    p_swap_edges = parallelize_swap_gates(swap_edges, num_rows, num_cols,
-                                          False)
+    p_swap_edges = parallelize_swap_gates(swap_edges, num_rows, num_cols, False)
     return intermediate_mapping, p_swap_edges
 
 
@@ -345,8 +335,7 @@ def round_3_column_routing(dst_row):
 def grid_route(src: np.ndarray, dst: np.ndarray, local=True):
 
     if len(src.shape) != 2:
-        raise ValueError(
-            f"Invalid grid dimensions ({src.shape}). Expecting 2d grids.")
+        raise ValueError(f"Invalid grid dimensions ({src.shape}). Expecting 2d grids.")
 
     if src.size != dst.size:
         err = "Source and destination must be of the same dimension.\n   "
@@ -367,10 +356,10 @@ def grid_route(src: np.ndarray, dst: np.ndarray, local=True):
 
     if local:
         intermediate_mapping, swaps_1 = round_1_column_routing_with_localism(
-            dst_row.copy(), dst_column.copy())
+            dst_row.copy(), dst_column.copy()
+        )
     else:
-        intermediate_mapping, swaps_1 = round_1_column_routing(
-            dst_column.copy())
+        intermediate_mapping, swaps_1 = round_1_column_routing(dst_column.copy())
     # swap dst_column and dst_row based on the intermediate_mapping
     for i in range(num_cols):
         tmp = dst_column[:, i]
